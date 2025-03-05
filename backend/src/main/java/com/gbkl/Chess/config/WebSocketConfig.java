@@ -10,7 +10,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
 
-    final ChessWebSocketHandler webSocketHandler;
+    private final ChessWebSocketHandler webSocketHandler;
 
     public WebSocketConfig(ChessWebSocketHandler webSocketHandler) {
         this.webSocketHandler = webSocketHandler;
@@ -18,6 +18,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(webSocketHandler,"").setAllowedOrigins("*");
+        registry.addHandler(webSocketHandler, "/ws/chess").setAllowedOrigins("*");
+        registry.addHandler(webSocketHandler, "/ws/game").setAllowedOrigins("*");
     }
 }
