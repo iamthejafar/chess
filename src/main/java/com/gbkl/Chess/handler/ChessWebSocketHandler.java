@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.*;
 
 @Configuration
-public class ChessWebSocketHandler implements WebSocketHandler {
+public class  ChessWebSocketHandler implements WebSocketHandler {
     private final WebSocketController webSocketController;
     private final GameSessionManager gameSessionManager;
     private final ObjectMapper objectMapper;
