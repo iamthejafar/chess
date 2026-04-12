@@ -1,6 +1,6 @@
 HELP.md
 target/
-!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
@@ -32,5 +32,8 @@ build/
 ### VS Code ###
 .vscode/
 
-### Sensitive Files ###
-src/main/resources/firebase-service-account.json
+### Local env / runtime data ###
+.env
+.env.*
+uploads/
+
