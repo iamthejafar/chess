@@ -33,7 +33,7 @@ public class WebSocketConfig implements WebSocketConfigurer {
                 .toArray(String[]::new);
 
         registry.addHandler(chessWebSocketHandler, "/chess")
-                .setAllowedOriginPatterns(resolvedOrigins);
+                .setAllowedOrigins(resolvedOrigins);
     }
 
     private String stripQuotes(String origin) {
