@@ -8,7 +8,7 @@ Set these variables in your hosting platform (Render/Heroku/Fly/K8s/etc):
 
 - `SPRING_PROFILES_ACTIVE=prod`
 - `PORT` (if your platform requires it)
-- `DATABASE_URL`
+- `DB_URL`
 - `DB_USER`
 - `DB_PASSWORD`
 - `REDIS_URL`
