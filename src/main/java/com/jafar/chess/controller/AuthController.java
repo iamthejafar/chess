@@ -129,4 +129,21 @@ public class AuthController {
                     .body(AuthResponse.error("Token refresh failed"));
         }
     }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            String token = authHeader.substring(7);
+            jwtService.revokeToken(token);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Error during logout", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 }

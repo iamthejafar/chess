@@ -7,14 +7,25 @@ import io.jsonwebtoken.security.WeakKeyException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.Key;
 import java.util.Date;
+import java.time.Duration;
 
 @Slf4j
 @Service
 public class JwtService {
+
+    private static final String REVOKED_TOKEN_PREFIX = "auth:revoked:";
+
+    private final StringRedisTemplate stringRedisTemplate;
+
+    public JwtService(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
 
     @Value("${jwt.secret}")
     private String jwtSecret;
@@ -63,6 +74,11 @@ public class JwtService {
      */
     public String validateTokenAndGetUserId(String token) {
         try {
+            if (isTokenRevoked(token)) {
+                log.warn("JWT token is revoked");
+                return null;
+            }
+
             Claims claims = Jwts.parserBuilder()
                     .setSigningKey(getSigningKey())
                     .build()
@@ -86,6 +102,34 @@ public class JwtService {
         } catch (IllegalArgumentException e) {
             log.warn("JWT claims string is empty: {}", e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Revoke a token until its expiration time.
+     * @param token JWT token to revoke
+     */
+    public void revokeToken(String token) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(getSigningKey())
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+            Date expiration = claims.getExpiration();
+            if (expiration == null) {
+                return;
+            }
+
+            long ttlMillis = expiration.getTime() - System.currentTimeMillis();
+            if (ttlMillis <= 0) {
+                return;
+            }
+
+            stringRedisTemplate.opsForValue().set(revokedTokenKey(token), "true", Duration.ofMillis(ttlMillis));
+        } catch (Exception e) {
+            log.warn("Unable to revoke JWT token: {}", e.getMessage());
         }
     }
 
@@ -125,6 +169,34 @@ public class JwtService {
             return claims.getExpiration().before(new Date());
         } catch (Exception e) {
             return true;
+        }
+    }
+
+    private boolean isTokenRevoked(String token) {
+        try {
+            Boolean revoked = stringRedisTemplate.hasKey(revokedTokenKey(token));
+            return Boolean.TRUE.equals(revoked);
+        } catch (Exception e) {
+            log.warn("Unable to check JWT revocation status: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private String revokedTokenKey(String token) {
+        return REVOKED_TOKEN_PREFIX + sha256Hex(token);
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to hash JWT token", e);
         }
     }
 

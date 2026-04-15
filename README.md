@@ -39,4 +39,5 @@ java -jar target/chess-0.0.1-SNAPSHOT.jar
 - API CORS and WebSocket origins are controlled by `APP_CORS_ALLOWED_ORIGINS`.
 - OAuth client ID is externalized via `GOOGLE_OAUTH_CLIENT_ID`.
 - Secrets are read from environment variables in production profile.
+- Sign-out uses `POST /api/auth/logout` with a bearer token and revokes that JWT until it expires.
 
