@@ -1,9 +1,7 @@
 services:
-  app:
-    build: .
-    env_file:
-      - .env
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
+  backend:
+    image: ghcr.io/iamthejafar/chess:${APP_VERSION:-latest}
     ports:
-      - "8080:8080"
+      - "${PORT:-8000}:8000"
+    env_file: .env
+    restart: unless-stopped

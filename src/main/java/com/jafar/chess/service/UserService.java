@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -19,10 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -67,44 +65,53 @@ public class UserService {
         return  repository.save(newUser);
     }
 
+    @Transactional
     public User findOrCreateGoogleUser(String googleId, String email, String name, String picture) {
+
         if (googleId == null || googleId.isBlank()) {
             throw new IllegalArgumentException("googleId is required");
         }
 
-        return repository.findByGoogleId(googleId)
-                .orElseGet(() -> {
-                    User existingByEmail = null;
-                    if (email != null && !email.isBlank()) {
-                        existingByEmail = repository.findByEmail(email).orElse(null);
-                    }
+        Optional<User> existingUser = repository.findByGoogleId(googleId);
+        if (existingUser.isPresent()) {
+            return existingUser.get();
+        }
 
-                    if (existingByEmail != null) {
-                        if (existingByEmail.getGoogleId() == null || existingByEmail.getGoogleId().isBlank()) {
-                            existingByEmail.setGoogleId(googleId);
-                        }
-                        if (name != null && !name.isBlank()) {
-                            existingByEmail.setName(name);
-                        }
-                        if (picture != null && !picture.isBlank()) {
-                            existingByEmail.setPicture(picture);
-                        }
-                        existingByEmail.setLastLoginAt(LocalDateTime.now());
-                        return repository.save(existingByEmail);
-                    }
+        try {
+            // Try to find by email
+            User user = null;
+            if (email != null && !email.isBlank()) {
+                user = repository.findByEmail(email).orElse(null);
+            }
 
-                    User newUser = User.builder()
-                            .isGuest(false)
-                            .id(UUID.randomUUID().toString())
-                            .username(getRandomUserName())
-                            .email(email)
-                            .name(name)
-                            .picture(picture)
-                            .googleId(googleId)
-                            .lastLoginAt(LocalDateTime.now())
-                            .build();
-                    return repository.save(newUser);
-                });
+            if (user != null) {
+                if (user.getGoogleId() == null) {
+                    user.setGoogleId(googleId);
+                }
+                user.setName(name);
+                user.setPicture(picture);
+                user.setLastLoginAt(LocalDateTime.now());
+                return repository.save(user);
+            }
+
+            // Create new user
+            User newUser = User.builder()
+                    .isGuest(false)
+                    .id(UUID.randomUUID().toString())
+                    .username(getRandomUserName())
+                    .email(email)
+                    .name(name)
+                    .picture(picture)
+                    .googleId(googleId)
+                    .lastLoginAt(LocalDateTime.now())
+                    .build();
+
+            return repository.save(newUser);
+
+        } catch (DataIntegrityViolationException e) {
+            return repository.findByGoogleId(googleId)
+                    .orElseThrow(() -> new RuntimeException("User creation failed after conflict"));
+        }
     }
 
     @Transactional

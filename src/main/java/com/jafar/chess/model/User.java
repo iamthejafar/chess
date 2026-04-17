@@ -16,15 +16,17 @@ public class User {
     @Id
     private String id;
 
-    private String email;
-
     private String name;
 
     private String username;
 
     private String picture;
 
+    @Column(unique = true)
     private String googleId;
+
+    @Column(unique = true)
+    private String email;
 
     @Builder.Default
     private boolean isGuest = false;
