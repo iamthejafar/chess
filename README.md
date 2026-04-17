@@ -2,23 +2,6 @@
 
 This project is a Spring Boot backend for multiplayer chess.
 
-## Production environment variables
-
-Set these variables in your hosting platform (Render/Heroku/Fly/K8s/etc):
-
-- `SPRING_PROFILES_ACTIVE=prod`
-- `PORT` (if your platform requires it)
-- `DB_URL`
-- `DB_USER`
-- `DB_PASSWORD`
-- `REDIS_URL`
-- `JWT_SECRET` (minimum 32 bytes)
-- `GOOGLE_OAUTH_CLIENT_ID`
-- `APP_CORS_ALLOWED_ORIGINS` (comma-separated origins)
-- `APP_UPLOAD_DIR` (optional, defaults to `/tmp/uploads`)
-
-Use `.env.example` as a template and never commit real values.
-
 ## Local run
 
 ```powershell
