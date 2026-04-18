@@ -77,7 +77,8 @@ jobs:
           script: |
             set -e
 
-            cat > ~/.env << EOF
+            # Write .env securely using env vars (no secret interpolation in script body)
+            cat > /app/.env << EOF
             SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
             PORT=${PORT}
             DB_URL=${DB_URL}
@@ -91,10 +92,11 @@ jobs:
             APP_UPLOAD_DIR=${APP_UPLOAD_DIR}
             APP_VERSION=${APP_VERSION}
             EOF
-            chmod 600 ~/.env
+            chmod 600 /app/.env
 
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
 
-            docker compose pull
-            docker compose up -d --remove-orphans
+            docker compose -f /app/docker-compose.yml pull
+            docker compose -f /app/docker-compose.yml up -d --remove-orphans
+
             docker image prune -f
