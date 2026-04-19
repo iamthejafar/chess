@@ -86,35 +86,11 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          envs: GHCR_TOKEN,GHCR_USER,SPRING_PROFILES_ACTIVE,PORT,DB_URL,DB_USER,DB_PASSWORD,REDIS_URL,JWT_SECRET,JWT_EXPIRATION_MS,GOOGLE_OAUTH_CLIENT_ID,APP_CORS_ALLOWED_ORIGINS,APP_UPLOAD_DIR,APP_VERSION
+          envs: GHCR_TOKEN,GHCR_USER,SPRING_PROFILES_ACTIVE,PORT,DB_URL,DB_USER,DB_PASSWORD,REDIS_URL,JWT_SECRET,APP_CORS_ALLOWED_ORIGINS,APP_UPLOAD_DIR
           script_stop: true
           script: |
             set -e
-
-            mkdir -p /app
-
-            # Write .env
-            cat > /app/.env << EOF
-            SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE}
-            PORT=${PORT}
-            DB_URL=${DB_URL}
-            DB_USER=${DB_USER}
-            DB_PASSWORD=${DB_PASSWORD}
-            REDIS_URL=${REDIS_URL}
-            JWT_SECRET=${JWT_SECRET}
-            JWT_EXPIRATION_MS=${JWT_EXPIRATION_MS}
-            GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
-            APP_CORS_ALLOWED_ORIGINS=${APP_CORS_ALLOWED_ORIGINS}
-            APP_UPLOAD_DIR=${APP_UPLOAD_DIR}
-            APP_VERSION=${APP_VERSION}
-            EOF
-            chmod 600 /app/.env
-
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
-
-            ls -la /app
-
             docker compose -f /app/docker-compose.yml pull
             docker compose -f /app/docker-compose.yml up -d --remove-orphans
-
             docker image prune -f
