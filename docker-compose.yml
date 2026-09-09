@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: chess-backend
+    runtime: image
+    plan: starter                # free plan sleeps → kills WebSockets
+    region: frankfurt
+    healthCheckPath: /actuator/health
+    image:
+      url: ghcr.io/iamthejafar/chess-backend:latest
+      # private package? add creds in dashboard, then:
+      # creds:
+      #   fromRegistryCreds:
+      #     name: ghcr-creds
+    disk:                        # only if you keep local file uploads
+      name: uploads
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: JAVA_OPTS
+        value: "-XX:MaxRAMPercentage=70 -XX:+UseSerialGC"
+      - key: DB_URL
+        sync: false              # paste jdbc:postgresql://... after DB is created
+      - key: DB_USER
+        fromDatabase: { name: chess-db, property: user }
+      - key: DB_PASSWORD
+        fromDatabase: { name: chess-db, property: password }
+      - key: REDIS_URL
+        fromService:
+          name: chess-redis
+          type: keyvalue
+          property: connectionString
+      - key: JWT_SECRET
+        sync: false
+      - key: APP_CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: APP_UPLOAD_DIR
+        value: /data/uploads
+
+  - type: keyvalue
+    name: chess-redis
+    plan: starter
+    region: frankfurt
+    ipAllowList: []              # internal-only access
+
+databases:
+  - name: chess-db
+    plan: basic-256mb
+    region: frankfurt
+    databaseName: chessdb
+    user: chessuser
