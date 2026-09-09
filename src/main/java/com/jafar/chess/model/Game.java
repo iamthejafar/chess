@@ -2,6 +2,7 @@ package com.jafar.chess.model;
 
 import com.jafar.chess.shared.EndReason;
 import com.jafar.chess.shared.GameResult;
+import com.jafar.chess.shared.Difficulty;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,6 +31,14 @@ public class Game {
 
     @Column(nullable = false, updatable = false)
     private String blackUserId;
+
+    // AI/Computer opponent tracking
+    @Column(nullable = false, updatable = false)
+    @Builder.Default
+    private boolean isComputerGame = false;
+
+    @Enumerated(EnumType.STRING)
+    private Difficulty aiDifficulty;
 
     // ── Board state ───────────────────────────────────────────────────────────────
 

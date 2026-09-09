@@ -30,6 +30,10 @@ public class UserController {
             @RequestParam String userId
     ){
         try {
+            if (isComputerUserId(userId)) {
+                return ResponseEntity.ok(createComputerUser(userId));
+            }
+
             User user =  userService.getUser(userId);
 
             return ResponseEntity.ok(user);
@@ -41,6 +45,25 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(AuthResponse.error("Failed to fetch user"));
         }
+    }
+
+    private boolean isComputerUserId(String userId) {
+        return userId != null && userId.startsWith("computer_");
+    }
+
+    private User createComputerUser(String userId) {
+        return User.builder()
+                .id(userId)
+                .name("Computer")
+                .username("computer")
+                .picture(null)
+                .isGuest(true)
+                .rating(1200)
+                .gamesPlayed(0)
+                .gamesWon(0)
+                .gamesLost(0)
+                .gamesDraw(0)
+                .build();
     }
 
     @PutMapping("/{userId}")

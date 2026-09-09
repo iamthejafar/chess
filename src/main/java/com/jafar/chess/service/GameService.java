@@ -2,10 +2,12 @@ package com.jafar.chess.service;
 
 
 import com.github.bhlangonijr.chesslib.Board;
+import com.github.bhlangonijr.chesslib.move.Move;
 import com.jafar.chess.model.MatchResult;
 import com.jafar.chess.repository.GameRepository;
 import com.jafar.chess.shared.EndReason;
 import com.jafar.chess.shared.GameResult;
+import com.jafar.chess.shared.Difficulty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -54,6 +56,9 @@ public class GameService {
 
     @Autowired(required = false)
     private UserService userService;
+
+    @Autowired
+    private AiService aiService;
 
     @Value("${app.game.cache.ttl-seconds:21600}")
     private long gameCacheTtlSeconds;
@@ -531,5 +536,98 @@ public class GameService {
             int totalPages,
             boolean hasNext,
             List<Game> games) {
+    }
+
+    /**
+     * Create a game with a computer opponent.
+     */
+    public synchronized MatchResult createAiGame(String userId, Difficulty difficulty) {
+        if (userId == null || userId.isBlank()) {
+            throw new IllegalArgumentException("userId is required");
+        }
+
+        String gameId = UUID.randomUUID().toString();
+        String aiUserId = "computer_" + gameId;
+
+        Board board = new Board();
+
+        boolean playerIsWhite = ThreadLocalRandom.current().nextBoolean();
+        String whiteUserId = playerIsWhite ? userId : aiUserId;
+        String blackUserId = playerIsWhite ? aiUserId : userId;
+
+        Game game = Game.builder()
+                .gameId(gameId)
+                .whiteUserId(whiteUserId)
+                .blackUserId(blackUserId)
+                .isComputerGame(true)
+                .aiDifficulty(difficulty != null ? difficulty : Difficulty.MEDIUM)
+                .moveCount(0)
+                .startTime(LocalDateTime.now())
+                .fen(board.getFen())
+                .build();
+
+        games.put(gameId, game);
+        boards.put(gameId, board);
+        indexParticipants(game);
+        persistGame(game);
+        cacheGame(game, false);
+
+        return MatchResult.builder()
+                .status(MatchResult.Status.MATCHED)
+                .userId(userId)
+                .opponentUserId(aiUserId)
+                .gameId(gameId)
+                .build();
+    }
+
+    /**
+     * Get the AI move for the current game state.
+     * Returns null if it's not the AI's turn or if the game is over.
+     */
+    public synchronized String getAiMove(String gameId) {
+        if (gameId == null || gameId.isBlank()) {
+            return null;
+        }
+
+        Game game = getGame(gameId);
+        if (game == null || !game.isComputerGame()) {
+            return null;
+        }
+
+        Board board = getBoard(gameId);
+        if (board == null || board.isMated() || board.isDraw()) {
+            return null;
+        }
+
+        // Determine whose turn it is
+        String aiUserId = game.getWhiteUserId().startsWith("computer_") ? game.getWhiteUserId() : game.getBlackUserId();
+        String humanUserId = game.findOpponent(aiUserId);
+
+        // Check if it's the AI's turn (by checking board state)
+        // If white to move and AI is white, or black to move and AI is black
+        boolean isAiWhite = game.getWhiteUserId().equals(aiUserId);
+        boolean isBoardWhiteToMove = board.getSideToMove().name().equals("WHITE");
+
+        boolean isAiTurn = (isAiWhite && isBoardWhiteToMove) || (!isAiWhite && !isBoardWhiteToMove);
+
+        if (!isAiTurn) {
+            return null;
+        }
+
+        // Get the AI's move
+        Move bestMove = aiService.findBestMove(board, game.getAiDifficulty());
+        if (bestMove == null) {
+            return null;
+        }
+
+        return bestMove.toString();
+    }
+
+    /**
+     * Check if a game is a computer game.
+     */
+    public boolean isComputerGame(String gameId) {
+        Game game = getGame(gameId);
+        return game != null && game.isComputerGame();
     }
 }

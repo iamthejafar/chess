@@ -38,6 +38,7 @@ public class ChessWebSocketHandler extends TextWebSocketHandler {
 
     private final Map<String, WebSocketSession> sessionsByUserId = new ConcurrentHashMap<>();
     private final Map<String, String> userIdBySessionId = new ConcurrentHashMap<>();
+    private final Map<String, WebSocketSession> aiGameSessions = new ConcurrentHashMap<>();
 
     public ChessWebSocketHandler(GameService gameService, ObjectMapper objectMapper) {
         this.gameService = gameService;
@@ -112,8 +113,18 @@ public class ChessWebSocketHandler extends TextWebSocketHandler {
         bindSessionToUser(session, userId);
 
         MatchResult result;
+        boolean isAiGame = request.getGameType() != null &&
+                          request.getGameType().toString().equals("HUMAN_VS_COMPUTER");
+
         try {
-            result = gameService.requestMatch(userId);
+            if (isAiGame) {
+                // Create AI game
+                result = gameService.createAiGame(userId, request.getDifficulty());
+                aiGameSessions.put(result.getGameId(), session);
+            } else {
+                // Regular human vs human game
+                result = gameService.requestMatch(userId);
+            }
         } catch (IllegalArgumentException e) {
             sendError(session, e.getMessage());
             return;
@@ -144,22 +155,35 @@ public class ChessWebSocketHandler extends TextWebSocketHandler {
                 .sessionId(session.getId())
                 .build());
 
-        WebSocketSession opponentSession = sessionsByUserId.get(result.getOpponentUserId());
-        if (opponentSession != null && opponentSession.isOpen()) {
-            String opponentColor = resolveUserColor(game, result.getOpponentUserId());
-            if (opponentColor == null) {
-                sendError(opponentSession, "User color is not set for this game");
-                return;
-            }
+        // For AI games, if the opponent moves first, generate AI move
+        if (isAiGame && game.getBlackUserId().startsWith("computer_")) {
+            // AI is playing as black (second to move)
+            // No need to generate AI move yet, human moves first
+        } else if (isAiGame && game.getWhiteUserId().startsWith("computer_")) {
+            // AI is playing as white (first to move)
+            // Generate first AI move
+            generateAndSendAiMove(game);
+        }
 
-            sendStatus(opponentSession, GameStatusResponse.builder()
-                    .type(Messages.MATCHED)
-                    .message(opponentColor)
-                    .userId(result.getOpponentUserId())
-                    .opponentUserId(userId)
-                    .gameId(result.getGameId())
-                    .sessionId(opponentSession.getId())
-                    .build());
+        // For human vs human, notify the opponent
+        if (!isAiGame) {
+            WebSocketSession opponentSession = sessionsByUserId.get(result.getOpponentUserId());
+            if (opponentSession != null && opponentSession.isOpen()) {
+                String opponentColor = resolveUserColor(game, result.getOpponentUserId());
+                if (opponentColor == null) {
+                    sendError(opponentSession, "User color is not set for this game");
+                    return;
+                }
+
+                sendStatus(opponentSession, GameStatusResponse.builder()
+                        .type(Messages.MATCHED)
+                        .message(opponentColor)
+                        .userId(result.getOpponentUserId())
+                        .opponentUserId(userId)
+                        .gameId(result.getGameId())
+                        .sessionId(opponentSession.getId())
+                        .build());
+            }
         }
     }
 
@@ -246,6 +270,18 @@ public class ChessWebSocketHandler extends TextWebSocketHandler {
         gameService.applyRatingsIfGameOver(game);
 
         sendGameStateToPlayers(game, board, Messages.MOVE, moveValue);
+
+        // Generate AI move if it's a computer game
+        if (gameService.isComputerGame(gameId) && !game.isGameOver()) {
+            // Schedule AI move generation after a short delay to prevent race conditions
+            new Thread(() -> {
+                try {
+                    Thread.sleep(500); // Small delay to ensure board state is updated
+                    generateAndSendAiMove(game);
+                } catch (InterruptedException ignored) {
+                }
+            }).start();
+        }
     }
 
     private void handleResign(WebSocketSession session, GameActionRequest request) throws IOException {
@@ -490,6 +526,50 @@ public class ChessWebSocketHandler extends TextWebSocketHandler {
         System.out.println("Send Message");
         System.out.println(json);
         session.sendMessage(new TextMessage(json));
+    }
+
+    /**
+     * Generate and send AI move for a computer game.
+     */
+    private void generateAndSendAiMove(Game game) {
+        if (game == null || !game.isComputerGame() || game.isGameOver()) {
+            return;
+        }
+
+        try {
+            String gameId = game.getGameId();
+            String moveStr = gameService.getAiMove(gameId);
+
+            if (moveStr == null || moveStr.isBlank()) {
+                return;
+            }
+
+            Board board = gameService.getBoard(gameId);
+            if (board == null) {
+                return;
+            }
+
+            // Apply the AI move to the board
+            boolean applied = board.doMove(moveStr);
+            if (!applied) {
+                return;
+            }
+
+            game.addMove(moveStr);
+            gameService.clearDrawOffer(gameId);
+            updateOutcomeFromBoard(game, board);
+            gameService.stageLiveUpdate(game, board);
+            gameService.applyRatingsIfGameOver(game);
+
+            // Send the AI move to the player
+            String humanUserId = game.findOpponent(game.getWhiteUserId().startsWith("computer_") ? game.getWhiteUserId() : game.getBlackUserId());
+            WebSocketSession playerSession = sessionsByUserId.get(humanUserId);
+
+            sendGameStateToPlayers(game, board, Messages.MOVE, moveStr);
+
+        } catch (Exception e) {
+            System.err.println("Error generating AI move: " + e.getMessage());
+        }
     }
 
     private static class ActionContext {

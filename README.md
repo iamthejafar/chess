@@ -9,6 +9,10 @@ $env:SPRING_PROFILES_ACTIVE='dev'
 ./mvnw.cmd spring-boot:run
 ```
 
+The default `dev` profile starts with an embedded H2 database, so you do not
+need a local PostgreSQL server just to launch the app. If you want to point the
+dev profile at PostgreSQL instead, set `DB_URL`, `DB_USER`, and `DB_PASSWORD`.
+
 ## Production run
 
 ```powershell

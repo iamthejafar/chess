@@ -126,6 +126,10 @@ public class UserService {
             return;
         }
 
+        if (isComputerUserId(whiteUserId) || isComputerUserId(blackUserId)) {
+            return;
+        }
+
         User white = repository.findById(whiteUserId).orElse(null);
         User black = repository.findById(blackUserId).orElse(null);
         if (white == null || black == null) {
@@ -157,6 +161,20 @@ public class UserService {
     }
 
     public User getUser(String userId){
+        if (isComputerUserId(userId)) {
+            return User.builder()
+                    .id(userId)
+                    .name("Computer")
+                    .username("computer")
+                    .isGuest(true)
+                    .rating(DEFAULT_RATING)
+                    .gamesPlayed(0)
+                    .gamesWon(0)
+                    .gamesLost(0)
+                    .gamesDraw(0)
+                    .build();
+        }
+
         return repository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
     }
@@ -388,5 +406,9 @@ public class UserService {
         } catch (IOException ignored) {
             // non-critical cleanup
         }
+    }
+
+    private boolean isComputerUserId(String userId) {
+        return userId != null && userId.startsWith("computer_");
     }
 }
